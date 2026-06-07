@@ -5,3 +5,6 @@
 //! computation, and `TriggerDef` (a schedule bound to a business-event it
 //! emits). This crate is the contract + pure logic; the running scheduler
 //! lives in operax (SP3).
+
+pub mod schedule;
+pub use schedule::{TimeOfDay, TriggerSchedule};
