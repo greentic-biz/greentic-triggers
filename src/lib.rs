@@ -8,3 +8,6 @@
 
 pub mod schedule;
 pub use schedule::{TimeOfDay, TriggerSchedule};
+
+pub mod def;
+pub use def::TriggerDef;
