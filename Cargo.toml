@@ -12,10 +12,8 @@ categories = ["date-and-time"]
 [dependencies]
 chrono = { version = "0.4", features = ["clock", "serde"] }
 cron = "0.16"
-# NOTE (SP3-slice1): path-deps the local greentic-types. greentic-start pins
-# registry =1.3.0-research.1; alignment is enforced at integration (start's
-# Task 6) via `cargo tree -p greentic-start -i greentic-types` — a single
-# greentic-types must resolve across triggers+start or EventEnvelope types split.
-greentic-types = { path = "../greentic-types", features = ["std"] }
+# Aligned with greentic-start (registry =1.3.0-research.1) so a single
+# greentic-types EventEnvelope/TenantCtx type flows triggers -> start.
+greentic-types = { version = "=1.3.0-research.1", features = ["std"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
