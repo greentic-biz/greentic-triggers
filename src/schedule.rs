@@ -28,13 +28,31 @@ fn weekday_cron(day: Weekday) -> &'static str {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TriggerSchedule {
     EveryMinute,
-    Hourly { minute: u8 },
-    Daily { at: TimeOfDay },
-    Weekly { day: Weekday, at: TimeOfDay },
-    Monthly { day: u8, at: TimeOfDay },
-    Yearly { month: u8, day: u8, at: TimeOfDay },
-    OnceAt { datetime: chrono::DateTime<chrono::Utc> },
-    Cron { expr: String },
+    Hourly {
+        minute: u8,
+    },
+    Daily {
+        at: TimeOfDay,
+    },
+    Weekly {
+        day: Weekday,
+        at: TimeOfDay,
+    },
+    Monthly {
+        day: u8,
+        at: TimeOfDay,
+    },
+    Yearly {
+        month: u8,
+        day: u8,
+        at: TimeOfDay,
+    },
+    OnceAt {
+        datetime: chrono::DateTime<chrono::Utc>,
+    },
+    Cron {
+        expr: String,
+    },
 }
 
 impl TriggerSchedule {
@@ -61,7 +79,11 @@ impl TriggerSchedule {
     pub fn next_fire(&self, after: DateTime<Utc>) -> Option<DateTime<Utc>> {
         match self {
             TriggerSchedule::OnceAt { datetime } => {
-                if *datetime > after { Some(*datetime) } else { None }
+                if *datetime > after {
+                    Some(*datetime)
+                } else {
+                    None
+                }
             }
             other => {
                 let expr = other.to_cron()?;
@@ -76,27 +98,43 @@ impl TriggerSchedule {
 mod tests {
     use super::*;
 
-    fn tod(hour: u8, minute: u8) -> TimeOfDay { TimeOfDay { hour, minute } }
+    fn tod(hour: u8, minute: u8) -> TimeOfDay {
+        TimeOfDay { hour, minute }
+    }
 
     #[test]
     fn every_minute_compiles_to_wildcard_minute() {
-        assert_eq!(TriggerSchedule::EveryMinute.to_cron().unwrap(), "0 * * * * *");
+        assert_eq!(
+            TriggerSchedule::EveryMinute.to_cron().unwrap(),
+            "0 * * * * *"
+        );
     }
 
     #[test]
     fn hourly_compiles_to_fixed_minute() {
-        assert_eq!(TriggerSchedule::Hourly { minute: 30 }.to_cron().unwrap(), "0 30 * * * *");
+        assert_eq!(
+            TriggerSchedule::Hourly { minute: 30 }.to_cron().unwrap(),
+            "0 30 * * * *"
+        );
     }
 
     #[test]
     fn daily_compiles_to_fixed_hour_minute() {
-        assert_eq!(TriggerSchedule::Daily { at: tod(6, 0) }.to_cron().unwrap(), "0 0 6 * * *");
+        assert_eq!(
+            TriggerSchedule::Daily { at: tod(6, 0) }.to_cron().unwrap(),
+            "0 0 6 * * *"
+        );
     }
 
     #[test]
     fn monthly_compiles_with_day_of_month() {
         assert_eq!(
-            TriggerSchedule::Monthly { day: 15, at: tod(9, 5) }.to_cron().unwrap(),
+            TriggerSchedule::Monthly {
+                day: 15,
+                at: tod(9, 5)
+            }
+            .to_cron()
+            .unwrap(),
             "0 5 9 15 * *"
         );
     }
@@ -104,7 +142,13 @@ mod tests {
     #[test]
     fn yearly_compiles_with_month_and_day() {
         assert_eq!(
-            TriggerSchedule::Yearly { month: 1, day: 1, at: tod(0, 0) }.to_cron().unwrap(),
+            TriggerSchedule::Yearly {
+                month: 1,
+                day: 1,
+                at: tod(0, 0)
+            }
+            .to_cron()
+            .unwrap(),
             "0 0 0 1 1 *"
         );
     }
@@ -112,7 +156,10 @@ mod tests {
     #[test]
     fn once_at_has_no_cron() {
         assert_eq!(
-            TriggerSchedule::OnceAt { datetime: chrono::DateTime::UNIX_EPOCH }.to_cron(),
+            TriggerSchedule::OnceAt {
+                datetime: chrono::DateTime::UNIX_EPOCH
+            }
+            .to_cron(),
             None
         );
     }
@@ -120,14 +167,23 @@ mod tests {
     #[test]
     fn cron_escape_hatch_passes_through() {
         assert_eq!(
-            TriggerSchedule::Cron { expr: "0 0 12 * * *".into() }.to_cron().unwrap(),
+            TriggerSchedule::Cron {
+                expr: "0 0 12 * * *".into()
+            }
+            .to_cron()
+            .unwrap(),
             "0 0 12 * * *"
         );
     }
 
     #[test]
     fn weekly_compiles_with_day_of_week() {
-        let expr = TriggerSchedule::Weekly { day: Weekday::Mon, at: tod(8, 0) }.to_cron().unwrap();
+        let expr = TriggerSchedule::Weekly {
+            day: Weekday::Mon,
+            at: tod(8, 0),
+        }
+        .to_cron()
+        .unwrap();
         assert!(expr.starts_with("0 0 8 * * "), "{expr}");
     }
 
@@ -140,20 +196,32 @@ mod tests {
     #[test]
     fn daily_next_fire_is_today_or_tomorrow() {
         let s = TriggerSchedule::Daily { at: tod(6, 0) };
-        assert_eq!(s.next_fire(at(2026, 6, 7, 5, 0)).unwrap(), at(2026, 6, 7, 6, 0));
-        assert_eq!(s.next_fire(at(2026, 6, 7, 7, 0)).unwrap(), at(2026, 6, 8, 6, 0));
+        assert_eq!(
+            s.next_fire(at(2026, 6, 7, 5, 0)).unwrap(),
+            at(2026, 6, 7, 6, 0)
+        );
+        assert_eq!(
+            s.next_fire(at(2026, 6, 7, 7, 0)).unwrap(),
+            at(2026, 6, 8, 6, 0)
+        );
     }
 
     #[test]
     fn every_minute_advances_one_minute() {
         let s = TriggerSchedule::EveryMinute;
-        assert_eq!(s.next_fire(at(2026, 6, 7, 5, 0)).unwrap(), at(2026, 6, 7, 5, 1));
+        assert_eq!(
+            s.next_fire(at(2026, 6, 7, 5, 0)).unwrap(),
+            at(2026, 6, 7, 5, 1)
+        );
     }
 
     #[test]
     fn weekly_lands_on_the_right_weekday() {
         // 2026-06-07 is a Sunday; next Monday 08:00 is 2026-06-08.
-        let s = TriggerSchedule::Weekly { day: chrono::Weekday::Mon, at: tod(8, 0) };
+        let s = TriggerSchedule::Weekly {
+            day: chrono::Weekday::Mon,
+            at: tod(8, 0),
+        };
         let next = s.next_fire(at(2026, 6, 7, 0, 0)).unwrap();
         assert_eq!(next.weekday(), chrono::Weekday::Mon);
         assert_eq!(next, at(2026, 6, 8, 8, 0));
@@ -163,7 +231,10 @@ mod tests {
     fn monthly_day_31_skips_short_months() {
         // cron does not roll over; day 31 simply does not occur in June.
         // From June 1, the next 31st is July 31.
-        let s = TriggerSchedule::Monthly { day: 31, at: tod(0, 0) };
+        let s = TriggerSchedule::Monthly {
+            day: 31,
+            at: tod(0, 0),
+        };
         let next = s.next_fire(at(2026, 6, 1, 0, 0)).unwrap();
         assert_eq!(next, at(2026, 7, 31, 0, 0));
     }
@@ -179,7 +250,11 @@ mod tests {
 
     #[test]
     fn yearly_leap_day_only_in_leap_years() {
-        let s = TriggerSchedule::Yearly { month: 2, day: 29, at: tod(0, 0) };
+        let s = TriggerSchedule::Yearly {
+            month: 2,
+            day: 29,
+            at: tod(0, 0),
+        };
         // From 2026 (non-leap), next Feb 29 is 2028.
         let next = s.next_fire(at(2026, 3, 1, 0, 0)).unwrap();
         assert_eq!(next, at(2028, 2, 29, 0, 0));
@@ -187,13 +262,20 @@ mod tests {
 
     #[test]
     fn bad_cron_yields_none() {
-        let s = TriggerSchedule::Cron { expr: "not a cron".into() };
+        let s = TriggerSchedule::Cron {
+            expr: "not a cron".into(),
+        };
         assert_eq!(s.next_fire(at(2026, 6, 7, 0, 0)), None);
     }
 
     #[test]
     fn cron_escape_hatch_computes_next_fire() {
-        let s = TriggerSchedule::Cron { expr: "0 0 12 * * *".into() };
-        assert_eq!(s.next_fire(at(2026, 6, 7, 11, 0)).unwrap(), at(2026, 6, 7, 12, 0));
+        let s = TriggerSchedule::Cron {
+            expr: "0 0 12 * * *".into(),
+        };
+        assert_eq!(
+            s.next_fire(at(2026, 6, 7, 11, 0)).unwrap(),
+            at(2026, 6, 7, 12, 0)
+        );
     }
 }
