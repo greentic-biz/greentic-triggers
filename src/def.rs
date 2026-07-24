@@ -1,9 +1,13 @@
 //! `TriggerDef`: a schedule bound to the business event it emits, plus
 //! validation and the fire -> business-event helper.
 
+use chrono::{DateTime, Utc};
 use core::str::FromStr;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+use greentic_types::events::BusinessEventBuilder;
+use greentic_types::{EventEnvelope, TenantCtx};
 
 use crate::schedule::{TimeOfDay, TriggerSchedule};
 
@@ -109,10 +113,87 @@ pub(crate) fn to_cap_uri(emits: &str) -> String {
     }
 }
 
+/// Build the business-event envelope for a fired trigger. `{{fire_time}}` string
+/// tokens in the payload template are replaced with the RFC 3339 fire instant.
+pub fn business_event_for_fire(
+    def: &TriggerDef,
+    fire_time: DateTime<Utc>,
+    tenant: &TenantCtx,
+) -> Result<EventEnvelope, Vec<String>> {
+    let cap = to_cap_uri(&def.emits);
+    let (domain, name) = greentic_types::events::parse_business_event_type(&cap)
+        .map_err(|e| vec![format!("emits '{}' invalid: {e}", def.emits)])?;
+    let payload = substitute_fire_time(&def.payload_template, &fire_time.to_rfc3339());
+    let event_id = format!("{}-{}", def.id, fire_time.timestamp_millis());
+
+    BusinessEventBuilder::new(domain, name, tenant.clone())
+        .producer(format!("trigger:{}", def.id))
+        .schema_version("1")
+        .payload(payload)
+        .time(fire_time)
+        .id(event_id)
+        .build()
+}
+
+/// Recursively replace any string exactly equal to `{{fire_time}}` with `value`.
+fn substitute_fire_time(template: &Value, value: &str) -> Value {
+    match template {
+        Value::String(s) if s == "{{fire_time}}" => Value::String(value.to_string()),
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|i| substitute_fire_time(i, value))
+                .collect(),
+        ),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(k, v)| (k.clone(), substitute_fire_time(v, value)))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::schedule::{TimeOfDay, TriggerSchedule};
+
+    fn test_tenant() -> greentic_types::TenantCtx {
+        let env = greentic_types::EnvId::try_from("prod").expect("env");
+        let tenant = greentic_types::TenantId::try_from("acme").expect("tenant");
+        greentic_types::TenantCtx::new(env, tenant)
+    }
+
+    #[test]
+    fn business_event_for_fire_builds_envelope() {
+        use chrono::TimeZone;
+        let def = TriggerDef {
+            id: "daily_rent_reminder".into(),
+            schedule: TriggerSchedule::Daily {
+                at: TimeOfDay { hour: 6, minute: 0 },
+            },
+            emits: "tenancy.daily-rent-reminder".into(),
+            payload_template: serde_json::json!({ "msg": "due", "at": "{{fire_time}}" }),
+        };
+        let fire = chrono::Utc.with_ymd_and_hms(2026, 7, 24, 6, 0, 0).unwrap();
+        let env = business_event_for_fire(&def, fire, &test_tenant()).expect("build");
+        assert_eq!(
+            env.r#type,
+            "cap://greentic/events/tenancy/daily-rent-reminder"
+        );
+        assert_eq!(env.topic, "tenancy");
+        assert_eq!(env.time, fire);
+        assert_eq!(
+            env.metadata.get("producer").map(String::as_str),
+            Some("trigger:daily_rent_reminder")
+        );
+        assert_eq!(
+            env.payload["at"],
+            serde_json::Value::String(fire.to_rfc3339())
+        );
+        assert_eq!(env.payload["msg"], "due");
+    }
 
     #[test]
     fn trigger_def_roundtrips_json() {

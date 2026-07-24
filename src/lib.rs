@@ -12,4 +12,4 @@ pub mod schedule;
 pub use schedule::{TimeOfDay, TriggerSchedule};
 
 pub mod def;
-pub use def::{TriggerDef, validate_trigger};
+pub use def::{TriggerDef, business_event_for_fire, validate_trigger};
