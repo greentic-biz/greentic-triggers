@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Time-based trigger schedules for the Greentic platform.
 //!
 //! Defines `TriggerSchedule` (a typed recurrence vocabulary with a raw-cron
