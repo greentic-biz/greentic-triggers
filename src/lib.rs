@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Time-based trigger schedules for the Greentic platform.
 //!
 //! Defines `TriggerSchedule` (a typed recurrence vocabulary with a raw-cron
@@ -8,3 +10,6 @@
 
 pub mod schedule;
 pub use schedule::{TimeOfDay, TriggerSchedule};
+
+pub mod def;
+pub use def::{TriggerDef, business_event_for_fire, validate_trigger};
